@@ -4,7 +4,7 @@ import type { TranscodeSettings, TranscodeProgress } from '@/types'
 import { getResolutionHeight } from './formats'
 
 let ffmpegInstance: FFmpeg | null = null
-let isTranscoding = false
+let shouldCancelTranscoding = false
 
 export async function loadFFmpeg(): Promise<FFmpeg> {
   if (ffmpegInstance && ffmpegInstance.loaded) {
@@ -68,8 +68,9 @@ export function buildFFmpegCommand(
     if (settings.resolution !== 'original') {
       const height = getResolutionHeight(settings.resolution)
       if (height) {
-        // Use scale filter with forced even dimensions (required for H.264/H.265)
-        args.push('-vf', `scale=-2:${height}:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2`)
+        // Calculate width that maintains aspect ratio and is divisible by 2
+        // -2 tells FFmpeg to calculate width automatically and round to nearest multiple of 2
+        args.push('-vf', `scale='trunc(ih*dar/2)*2:${height}'`)
       }
     }
 
@@ -161,16 +162,19 @@ export async function getVideoDuration(file: File): Promise<number> {
 }
 
 export function abortTranscoding(): void {
-  isTranscoding = false
+  shouldCancelTranscoding = true
+  console.log('Transcoding cancel requested')
+  
+  // Terminate the FFmpeg instance to actually stop processing
   if (ffmpegInstance) {
     try {
-      // Terminate FFmpeg instance to stop current processing
       ffmpegInstance.terminate()
-      ffmpegInstance = null
-      console.log('Transcoding aborted')
+      console.log('FFmpeg instance terminated')
     } catch (error) {
-      console.error('Error aborting transcoding:', error)
+      console.error('Error terminating FFmpeg:', error)
     }
+    // Set to null so it will be reloaded on next transcode
+    ffmpegInstance = null
   }
 }
 
@@ -183,13 +187,18 @@ export async function transcodeVideo(
   const inputFilename = 'input.' + file.name.split('.').pop()
   const outputFilename = `output.${settings.format}`
 
-  isTranscoding = true
+  // Reset cancellation flag at start
+  shouldCancelTranscoding = false
 
   // Get video duration for progress calculation
   const duration = await getVideoDuration(file)
 
   // Progress handler with memoized callback
   const progressHandler = ({ progress, time }: { progress: number; time: number }) => {
+    if (shouldCancelTranscoding) {
+      return // Stop processing progress updates if cancelled
+    }
+    
     if (duration > 0) {
       const currentTime = time / 1000000 // Convert microseconds to seconds
       const percentage = Math.min((currentTime / duration) * 100, 100)
@@ -207,6 +216,10 @@ export async function transcodeVideo(
 
   // Log handler for detailed progress
   const logHandler = ({ message }: { message: string }) => {
+    if (shouldCancelTranscoding) {
+      return // Stop processing log updates if cancelled
+    }
+    
     const progressData = parseFFmpegProgress(message, duration)
     if (progressData) {
       onProgress(progressData)
@@ -218,18 +231,44 @@ export async function transcodeVideo(
   ffmpeg.on('log', logHandler)
 
   try {
+    // Check for cancellation before starting
+    if (shouldCancelTranscoding) {
+      throw new Error('Transcoding was cancelled')
+    }
+
     // Write input file to FFmpeg FS
     await ffmpeg.writeFile(inputFilename, await fetchFile(file))
+
+    // Check for cancellation after file write
+    if (shouldCancelTranscoding) {
+      await ffmpeg.deleteFile(inputFilename).catch(() => {})
+      throw new Error('Transcoding was cancelled')
+    }
 
     // Build and execute command
     const command = buildFFmpegCommand(inputFilename, outputFilename, settings)
     console.log('FFmpeg command:', ['ffmpeg', ...command].join(' '))
     
-    await ffmpeg.exec(command)
+    // Start transcoding (this will run until completion, error, or termination)
+    try {
+      await ffmpeg.exec(command)
+    } catch (execError) {
+      // If error contains "terminate", it means user cancelled
+      const errorMsg = execError instanceof Error ? execError.message : String(execError)
+      if (errorMsg.includes('terminate')) {
+        throw new Error('Transcoding was cancelled')
+      }
+      // Otherwise, re-throw the original error
+      throw execError
+    }
 
-    // Check if transcoding was aborted
-    if (!isTranscoding) {
-      throw new Error('Transcoding was aborted')
+    // Check if transcoding was cancelled after completion
+    if (shouldCancelTranscoding) {
+      await Promise.all([
+        ffmpeg.deleteFile(inputFilename).catch(() => {}),
+        ffmpeg.deleteFile(outputFilename).catch(() => {})
+      ])
+      throw new Error('Transcoding was cancelled')
     }
 
     // Read output file
@@ -241,8 +280,6 @@ export async function transcodeVideo(
       ffmpeg.deleteFile(outputFilename).catch(() => {})
     ])
 
-    isTranscoding = false
-
     // Convert to Blob efficiently
     if (data instanceof Uint8Array) {
       return new Blob([data.slice()], { type: `video/${settings.format}` })
@@ -251,7 +288,6 @@ export async function transcodeVideo(
       return new Blob([blobData], { type: `video/${settings.format}` })
     }
   } catch (error) {
-    isTranscoding = false
     // Clean up on error
     await Promise.all([
       ffmpeg.deleteFile(inputFilename).catch(() => {}),
@@ -262,5 +298,7 @@ export async function transcodeVideo(
     // Remove listeners
     ffmpeg.off('progress', progressHandler)
     ffmpeg.off('log', logHandler)
+    // Reset cancellation flag
+    shouldCancelTranscoding = false
   }
 }

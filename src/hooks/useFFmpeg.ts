@@ -10,10 +10,7 @@ export function useFFmpeg() {
   const ffmpegRef = useRef<FFmpeg | null>(null)
 
   const load = useCallback(async () => {
-    if (ffmpegRef.current && isReady) {
-      return ffmpegRef.current
-    }
-
+    // Always try to load (will reuse if already loaded, or reload if terminated)
     setIsLoading(true)
     setLoadProgress(0)
 
@@ -24,11 +21,12 @@ export function useFFmpeg() {
       return ffmpeg
     } catch (error) {
       console.error('Failed to load FFmpeg:', error)
+      setIsReady(false)
       throw error
     } finally {
       setIsLoading(false)
     }
-  }, [isReady])
+  }, [])
 
   const transcode = useCallback(
     async (
@@ -36,15 +34,24 @@ export function useFFmpeg() {
       settings: TranscodeSettings,
       onProgress: (progress: Partial<TranscodeProgress>) => void
     ): Promise<Blob> => {
-      if (!ffmpegRef.current) {
-        await load()
-      }
+      // Always load first (will reload if instance was terminated)
+      const ffmpeg = await load()
 
-      if (!ffmpegRef.current) {
+      if (!ffmpeg) {
         throw new Error('FFmpeg not loaded')
       }
 
-      return transcodeVideo(ffmpegRef.current, file, settings, onProgress)
+      try {
+        return await transcodeVideo(ffmpeg, file, settings, onProgress)
+      } catch (error) {
+        // If transcode failed due to termination, reset ready state
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        if (errorMsg.includes('terminate') || errorMsg.includes('cancelled')) {
+          setIsReady(false)
+          ffmpegRef.current = null
+        }
+        throw error
+      }
     },
     [load]
   )

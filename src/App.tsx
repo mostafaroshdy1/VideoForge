@@ -58,11 +58,9 @@ function App() {
     updateJobStatus(nextJob.id, 'processing')
 
     try {
-      // Ensure FFmpeg is loaded
-      if (!isReady) {
-        setLoadError(null)
-        await load()
-      }
+      // Ensure FFmpeg is loaded (will reload if terminated)
+      setLoadError(null)
+      await load()
 
       // Transcode the video
       const outputBlob = await transcode(
@@ -89,16 +87,22 @@ function App() {
       console.error('Transcode error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       
-      // Check if it's an FFmpeg loading error
-      if (errorMessage.includes('Failed to load FFmpeg')) {
-        setLoadError(errorMessage)
+      // Check if it was cancelled by user
+      if (errorMessage.includes('cancelled')) {
+        updateJobStatus(nextJob.id, 'error', 'Cancelled by user')
+        // FFmpeg was terminated, it will be reloaded on next job
+      } else {
+        // Check if it's an FFmpeg loading error
+        if (errorMessage.includes('Failed to load FFmpeg')) {
+          setLoadError(errorMessage)
+        }
+        
+        updateJobStatus(
+          nextJob.id,
+          'error',
+          errorMessage
+        )
       }
-      
-      updateJobStatus(
-        nextJob.id,
-        'error',
-        errorMessage
-      )
     } finally {
       setIsProcessing(false)
       setCurrentJob(null)
@@ -106,13 +110,13 @@ function App() {
   }, [
     getNextPendingJob,
     isProcessing,
-    isReady,
     load,
     transcode,
     updateJobProgress,
     updateJobStatus,
     setJobOutput,
     setCurrentJob,
+    downloadFile,
   ])
 
   // Auto-process next job when previous completes

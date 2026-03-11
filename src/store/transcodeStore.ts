@@ -104,15 +104,8 @@ export const useTranscodeStore = create<TranscodeStore>((set, get) => ({
   abortCurrentJob: () => {
     const state = get()
     if (state.currentJobId) {
+      // Just trigger the abort, let the transcode function handle the error
       abortTranscoding()
-      set((prevState) => ({
-        jobs: prevState.jobs.map((job) =>
-          job.id === state.currentJobId
-            ? { ...job, status: 'error' as TranscodeStatus, error: 'Aborted by user' }
-            : job
-        ),
-        currentJobId: null,
-      }))
     }
   },
 }))
