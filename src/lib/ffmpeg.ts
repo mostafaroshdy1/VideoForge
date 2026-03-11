@@ -4,6 +4,7 @@ import type { TranscodeSettings, TranscodeProgress } from '@/types'
 import { getResolutionHeight } from './formats'
 
 let ffmpegInstance: FFmpeg | null = null
+let isTranscoding = false
 
 export async function loadFFmpeg(): Promise<FFmpeg> {
   if (ffmpegInstance && ffmpegInstance.loaded) {
@@ -56,17 +57,19 @@ export function buildFFmpegCommand(
     args.push('-c:v', settings.videoCodec)
 
     // Quality settings
-    if (settings.qualityMode === 'crf' && settings.videoCodec.includes('x264') || settings.videoCodec.includes('x265')) {
+    const isX264Or265 = settings.videoCodec.includes('x264') || settings.videoCodec.includes('x265')
+    if (settings.qualityMode === 'crf' && isX264Or265) {
       args.push('-crf', settings.crf.toString())
     } else if (settings.qualityMode === 'bitrate') {
       args.push('-b:v', `${settings.bitrate}k`)
     }
 
-    // Resolution
+    // Resolution - ensure even dimensions for H.264/H.265
     if (settings.resolution !== 'original') {
       const height = getResolutionHeight(settings.resolution)
       if (height) {
-        args.push('-vf', `scale=-2:${height}`)
+        // Use scale filter with forced even dimensions (required for H.264/H.265)
+        args.push('-vf', `scale=-2:${height}:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2`)
       }
     }
 
@@ -75,8 +78,8 @@ export function buildFFmpegCommand(
       args.push('-r', settings.fps.toString())
     }
 
-    // Preset for x264/x265
-    if (settings.videoCodec.includes('x264') || settings.videoCodec.includes('x265')) {
+    // Preset for x264/x265 - use faster preset for better performance
+    if (isX264Or265) {
       args.push('-preset', 'medium')
     }
   } else {
@@ -157,6 +160,20 @@ export async function getVideoDuration(file: File): Promise<number> {
   })
 }
 
+export function abortTranscoding(): void {
+  isTranscoding = false
+  if (ffmpegInstance) {
+    try {
+      // Terminate FFmpeg instance to stop current processing
+      ffmpegInstance.terminate()
+      ffmpegInstance = null
+      console.log('Transcoding aborted')
+    } catch (error) {
+      console.error('Error aborting transcoding:', error)
+    }
+  }
+}
+
 export async function transcodeVideo(
   ffmpeg: FFmpeg,
   file: File,
@@ -166,11 +183,13 @@ export async function transcodeVideo(
   const inputFilename = 'input.' + file.name.split('.').pop()
   const outputFilename = `output.${settings.format}`
 
+  isTranscoding = true
+
   // Get video duration for progress calculation
   const duration = await getVideoDuration(file)
 
-  // Set up progress listener
-  ffmpeg.on('progress', ({ progress, time }) => {
+  // Progress handler with memoized callback
+  const progressHandler = ({ progress, time }: { progress: number; time: number }) => {
     if (duration > 0) {
       const currentTime = time / 1000000 // Convert microseconds to seconds
       const percentage = Math.min((currentTime / duration) * 100, 100)
@@ -184,14 +203,19 @@ export async function transcodeVideo(
         percentage: Math.round(progress * 100),
       })
     }
-  })
+  }
 
-  ffmpeg.on('log', ({ message }) => {
+  // Log handler for detailed progress
+  const logHandler = ({ message }: { message: string }) => {
     const progressData = parseFFmpegProgress(message, duration)
     if (progressData) {
       onProgress(progressData)
     }
-  })
+  }
+
+  // Set up listeners
+  ffmpeg.on('progress', progressHandler)
+  ffmpeg.on('log', logHandler)
 
   try {
     // Write input file to FFmpeg FS
@@ -203,32 +227,40 @@ export async function transcodeVideo(
     
     await ffmpeg.exec(command)
 
+    // Check if transcoding was aborted
+    if (!isTranscoding) {
+      throw new Error('Transcoding was aborted')
+    }
+
     // Read output file
     const data = await ffmpeg.readFile(outputFilename)
     
-    // Clean up
-    await ffmpeg.deleteFile(inputFilename)
-    await ffmpeg.deleteFile(outputFilename)
+    // Clean up files
+    await Promise.all([
+      ffmpeg.deleteFile(inputFilename).catch(() => {}),
+      ffmpeg.deleteFile(outputFilename).catch(() => {})
+    ])
 
-    // Convert to Blob
-    if (typeof data === 'string') {
+    isTranscoding = false
+
+    // Convert to Blob efficiently
+    if (data instanceof Uint8Array) {
+      return new Blob([data.slice()], { type: `video/${settings.format}` })
+    } else {
       const blobData = new TextEncoder().encode(data)
       return new Blob([blobData], { type: `video/${settings.format}` })
-    } else {
-      // Create a new ArrayBuffer from the data
-      const buffer = new ArrayBuffer(data.byteLength)
-      const view = new Uint8Array(buffer)
-      view.set(new Uint8Array(data.buffer))
-      return new Blob([buffer], { type: `video/${settings.format}` })
     }
   } catch (error) {
+    isTranscoding = false
     // Clean up on error
-    try {
-      await ffmpeg.deleteFile(inputFilename)
-      await ffmpeg.deleteFile(outputFilename)
-    } catch (cleanupError) {
-      // Ignore cleanup errors
-    }
+    await Promise.all([
+      ffmpeg.deleteFile(inputFilename).catch(() => {}),
+      ffmpeg.deleteFile(outputFilename).catch(() => {})
+    ])
     throw error
+  } finally {
+    // Remove listeners
+    ffmpeg.off('progress', progressHandler)
+    ffmpeg.off('log', logHandler)
   }
 }

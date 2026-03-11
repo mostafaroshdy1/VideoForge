@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { TranscodeJob, VideoFile, TranscodeProgress, TranscodeStatus } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
+import { abortTranscoding } from '@/lib/ffmpeg'
 
 interface TranscodeStore {
   jobs: TranscodeJob[]
@@ -14,6 +15,7 @@ interface TranscodeStore {
   clearCompleted: () => void
   setCurrentJob: (jobId: string | null) => void
   getNextPendingJob: () => TranscodeJob | null
+  abortCurrentJob: () => void
 }
 
 export const useTranscodeStore = create<TranscodeStore>((set, get) => ({
@@ -97,5 +99,20 @@ export const useTranscodeStore = create<TranscodeStore>((set, get) => ({
   getNextPendingJob: () => {
     const state = get()
     return state.jobs.find((job) => job.status === 'pending') ?? null
+  },
+
+  abortCurrentJob: () => {
+    const state = get()
+    if (state.currentJobId) {
+      abortTranscoding()
+      set((prevState) => ({
+        jobs: prevState.jobs.map((job) =>
+          job.id === state.currentJobId
+            ? { ...job, status: 'error' as TranscodeStatus, error: 'Aborted by user' }
+            : job
+        ),
+        currentJobId: null,
+      }))
+    }
   },
 }))

@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, Loader2, Download, Clock } from 'lucide-react'
+import { CheckCircle2, XCircle, Loader2, Download, Clock, X } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Progress } from './ui/progress'
 import { Button } from './ui/button'
@@ -9,9 +9,10 @@ interface ProgressCardProps {
   job: TranscodeJob
   onDownload?: (job: TranscodeJob) => void
   onRemove?: (jobId: string) => void
+  onCancel?: (jobId: string) => void
 }
 
-export function ProgressCard({ job, onDownload, onRemove }: ProgressCardProps) {
+export function ProgressCard({ job, onDownload, onRemove, onCancel }: ProgressCardProps) {
   const getStatusIcon = () => {
     switch (job.status) {
       case 'completed':
@@ -64,6 +65,16 @@ export function ProgressCard({ job, onDownload, onRemove }: ProgressCardProps) {
             </div>
           </div>
           <div className="flex gap-2">
+            {job.status === 'processing' && onCancel && (
+              <Button 
+                size="sm" 
+                variant="destructive" 
+                onClick={() => onCancel(job.id)}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Cancel
+              </Button>
+            )}
             {job.status === 'completed' && job.outputBlob && onDownload && (
               <Button size="sm" variant="outline" onClick={() => onDownload(job)}>
                 <Download className="h-4 w-4" />

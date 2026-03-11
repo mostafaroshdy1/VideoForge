@@ -41,6 +41,7 @@ A powerful, **privacy-first** video transcoding application that runs entirely i
 - **Resolution Scaling**: 360p to 4K (2160p) or keep original
 - **Quality Control**: CRF (Constant Rate Factor) or bitrate modes
 - **Batch Processing**: Queue and process multiple videos sequentially
+- **Cancel Anytime**: Abort current transcoding with one click
 
 ### 📊 Progress Tracking
 - Real-time percentage and time estimates

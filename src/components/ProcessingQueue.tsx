@@ -9,6 +9,7 @@ interface ProcessingQueueProps {
   onDownload: (job: TranscodeJob) => void
   onRemove: (jobId: string) => void
   onClearCompleted: () => void
+  onCancel?: (jobId: string) => void
 }
 
 export function ProcessingQueue({
@@ -16,6 +17,7 @@ export function ProcessingQueue({
   onDownload,
   onRemove,
   onClearCompleted,
+  onCancel,
 }: ProcessingQueueProps) {
   const completedCount = jobs.filter((j) => j.status === 'completed').length
   const processingCount = jobs.filter((j) => j.status === 'processing').length
@@ -58,6 +60,7 @@ export function ProcessingQueue({
             job={job}
             onDownload={onDownload}
             onRemove={onRemove}
+            onCancel={onCancel}
           />
         ))}
       </CardContent>

@@ -31,6 +31,7 @@ function App() {
     clearCompleted,
     setCurrentJob,
     getNextPendingJob,
+    abortCurrentJob,
   } = useTranscodeStore()
 
   // Auto-download completed jobs
@@ -83,14 +84,7 @@ function App() {
       updateJobStatus(nextJob.id, 'completed')
 
       // Auto-download
-      const url = URL.createObjectURL(outputBlob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = outputFilename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      downloadFile({ ...nextJob, outputBlob, outputFilename } as TranscodeJob)
     } catch (error) {
       console.error('Transcode error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
@@ -138,6 +132,10 @@ function App() {
   const handleRemoveFile = useCallback((index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
   }, [])
+
+  const handleCancelJob = useCallback(() => {
+    abortCurrentJob()
+  }, [abortCurrentJob])
 
   const handleStartTranscode = useCallback(() => {
     if (selectedFiles.length === 0) return
@@ -252,6 +250,7 @@ function App() {
               onDownload={downloadFile}
               onRemove={removeJob}
               onClearCompleted={clearCompleted}
+              onCancel={handleCancelJob}
             />
           </div>
         </div>
