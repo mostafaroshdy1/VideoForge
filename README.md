@@ -3,6 +3,7 @@
   <p><strong>Convert videos in your browser - fast, private, and free</strong></p>
   
   <p>
+    <a href="https://mostafaroshdy1.github.io/VideoForge/" target="_blank"><strong>🚀 Try Live Demo</strong></a> •
     <a href="#features">Features</a> •
     <a href="#quick-start">Quick Start</a> •
     <a href="#usage">Usage</a> •
@@ -15,6 +16,12 @@
     <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript" alt="TypeScript" />
     <img src="https://img.shields.io/badge/Vite-5-646cff?logo=vite" alt="Vite" />
     <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License" />
+  </p>
+  
+  <p>
+    <a href="https://mostafaroshdy1.github.io/VideoForge/" target="_blank">
+      <img src="https://img.shields.io/badge/demo-live-success?style=for-the-badge" alt="Live Demo" />
+    </a>
   </p>
 </div>
 
