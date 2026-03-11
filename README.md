@@ -1,18 +1,53 @@
-# Video Transcoder
+<div align="center">
+  <h1>🎬 Video Transcoder</h1>
+  <p><strong>Convert videos in your browser - fast, private, and free</strong></p>
+  
+  <p>
+    <a href="#features">Features</a> •
+    <a href="#quick-start">Quick Start</a> •
+    <a href="#usage">Usage</a> •
+    <a href="#supported-formats">Formats</a> •
+    <a href="#troubleshooting">Troubleshooting</a>
+  </p>
 
-A powerful, client-side video transcoding application built with React and FFmpeg.wasm. Convert and compress videos directly in your browser - no server required, all processing happens locally!
+  <p>
+    <img src="https://img.shields.io/badge/React-18-61dafb?logo=react" alt="React 18" />
+    <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/Vite-5-646cff?logo=vite" alt="Vite" />
+    <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License" />
+  </p>
+</div>
 
-## Features
+---
 
-- **Format Conversion**: Convert between MP4, WebM, AVI, MOV, MKV, FLV, and OGV
-- **Compression Control**: Adjust quality using bitrate or CRF (Constant Rate Factor)
-- **Resolution Scaling**: Scale videos from 360p to 4K (2160p)
-- **Codec Selection**: Choose from multiple video and audio codecs per format
-- **Batch Processing**: Process multiple videos sequentially
-- **Real-time Progress**: Detailed progress tracking with FPS, speed, frames, and time estimates
-- **Auto-Download**: Transcoded videos automatically download when complete
-- **Dark Mode UI**: Beautiful dark-themed interface built with shadcn/ui
-- **Privacy-First**: All processing happens in your browser - files never leave your device
+## 📖 About
+
+A powerful, **privacy-first** video transcoding application that runs entirely in your browser. Built with React and powered by FFmpeg.wasm, it offers professional-grade video conversion without ever uploading your files to a server.
+
+**🔒 Your files never leave your device** - All processing happens locally using WebAssembly technology.
+
+## ✨ Features
+
+### 🎥 Video Processing
+- **7 Output Formats**: MP4, WebM, AVI, MOV, MKV, FLV, OGV
+- **Multiple Codecs**: H.264, H.265 (HEVC), VP8, VP9, and more
+- **Resolution Scaling**: 360p to 4K (2160p) or keep original
+- **Quality Control**: CRF (Constant Rate Factor) or bitrate modes
+- **Batch Processing**: Queue and process multiple videos sequentially
+
+### 📊 Progress Tracking
+- Real-time percentage and time estimates
+- FPS (frames per second) monitoring
+- Processing speed indicator
+- Current/total frame count
+- Live file size updates
+
+### 🎨 User Experience
+- **Beautiful Dark UI**: Modern interface built with shadcn/ui
+- **Drag & Drop**: Easy file uploading
+- **Auto-Download**: Completed videos download automatically
+- **Error Handling**: Clear error messages and troubleshooting guides
+- **Responsive Design**: Works on desktop and tablets
 
 ## Tech Stack
 
